@@ -1,0 +1,129 @@
+#include <Servo.h>
+
+// Define servo objects
+Servo servo1, servo2, servo3, servo4, servo5, servo6;
+
+void setup() {
+    Serial.begin(9600);  // Start serial communication
+    servo1.attach(6);
+    servo2.attach(7);
+    servo3.attach(8);
+    servo4.attach(13);
+    servo5.attach(11);
+    servo6.attach(9);
+
+    // Initial positions for the servos
+    servo1.write(0);   // Servo 1 starts at 0 degrees
+    servo2.write(15);  // Servo 2 starts at 15 degrees
+    servo3.write(180); // Servo 3 starts at 180 degrees
+    servo4.write(180); // Servo 4 starts at 180 degrees
+    servo5.write(45);  // Servo 5 starts at 45 degrees
+    servo6.write(20);  // Servo 6 starts at 20 degrees
+}
+
+void loop() {
+    if (Serial.available()) {
+        String command = Serial.readStringUntil('\n');
+        
+        // Debug: Print the received command
+        Serial.print("Received command: ");
+        Serial.println(command);
+
+        // Parse the command to extract servo angles for Servo 1 and Servo 2
+        int commaIndex1 = command.indexOf(',');
+        int commaIndex2 = command.indexOf(',', commaIndex1 + 1);
+        int commaIndex3 = command.indexOf(',', commaIndex2 + 1);
+        int commaIndex4 = command.indexOf(',', commaIndex3 + 1);
+        int commaIndex5 = command.indexOf(',', commaIndex4 + 1);
+
+        if (commaIndex2 > 0 && commaIndex5 > 0) {
+            String servo1AngleStr = command.substring(0, commaIndex1);
+            String servo2AngleStr = command.substring(commaIndex1 + 1, commaIndex2);
+            String servo3AngleStr = command.substring(commaIndex2 + 1, commaIndex3);
+            String servo4AngleStr = command.substring(commaIndex3 + 1, commaIndex4);
+            String servo5AngleStr = command.substring(commaIndex4 + 1, commaIndex5);
+            String servo6AngleStr = command.substring(commaIndex5 + 1);
+
+            // Convert the angles to integers
+            int angle1 = constrain(servo1AngleStr.toInt(), 0, 180);
+            int angle2 = constrain(servo2AngleStr.toInt(), 0, 180);
+            int angle3 = constrain(servo3AngleStr.toInt(), 0, 180);
+            int angle4 = constrain(servo4AngleStr.toInt(), 0, 180);
+            int angle5 = constrain(servo5AngleStr.toInt(), 0, 180);
+            int angle6 = constrain(servo6AngleStr.toInt(), 0, 180);
+
+            // Print the parsed angles for debugging
+            Serial.print("Servo 1 Target Angle: ");
+            Serial.println(angle1);
+            Serial.print("Servo 2 Target Angle: ");
+            Serial.println(angle2);
+
+            // --- Step 1: Move Servo 1 and Servo 2 to their target angles ---
+            for (int pos = 0; pos <= angle1; pos++) {
+                servo1.write(pos);
+                delay(15);  // Adjust delay to control speed
+            }
+
+            
+             servo2.write(angle2);
+                delay(15); 
+//            for (int pos = 15; pos <= angle2; pos++) {  // Start from 15 for Servo 2
+//                servo2.write(pos);
+//                delay(15);  // Adjust delay to control speed
+//            }
+
+            // --- Step 2: Move Servo 3, Servo 4, and Servo 5 ---
+            // Move Servo 3 to specified angle
+            servo3.write(angle3);
+            delay(500); // Optional delay to ensure position
+
+            // Move Servo 4 to specified angle
+            servo4.write(angle4);
+            delay(500); // Optional delay to ensure position
+
+            // Move Servo 5 to specified angle
+            servo5.write(angle5);
+            delay(500); // Optional delay to ensure position
+
+            // --- Step 3: Move Servo 6 from 20 to 80 degrees ---
+            for (int pos = 20; pos <= 80; pos++) {
+                servo6.write(pos);
+                delay(15);  // Adjust delay to control speed
+            }
+
+            // --- Step 4: Move Servo 1 back to 0 degrees ---
+            for (int pos = angle1; pos >= 0; pos--) {
+                servo1.write(pos);
+                delay(15);  // Adjust delay to control speed
+            }
+
+            // --- Step 5: Move Servo 2 back to its starting position ---
+            for (int pos = angle2; pos >= 15; pos--) { // Back to 15 for Servo 2
+                servo2.write(pos);
+                delay(15);  // Adjust delay to control speed
+            }
+
+            // --- Step 6: Move Servo 6 back from 80 to 20 degrees ---
+            for (int pos = 70; pos >= 40; pos--) {
+                servo6.write(pos);
+                delay(15);  // Adjust delay to control speed
+            }
+
+            // --- Step 7: Move Servo 3, Servo 4, and Servo 5 back to their initial positions ---
+            // Move Servo 3 back
+            servo3.write(180);
+            delay(500); // Optional delay to ensure position
+
+            // Move Servo 4 back
+            servo4.write(180);
+            delay(500); // Optional delay to ensure position
+
+            // Move Servo 5 back
+            servo5.write(45);
+            delay(500); // Optional delay to ensure position
+
+        } else {
+            Serial.println("Invalid command format.");
+        }
+    }
+}
