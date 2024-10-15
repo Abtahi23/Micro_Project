@@ -1,0 +1,123 @@
+from ultralytics import YOLO
+import cv2
+import time
+import serial
+
+# Load the best trained YOLOv8 model
+model = YOLO(r'C:\Users\Hp\Downloads\waste-detection.v10i.yolov8\runs\detect\train6\weights\best.pt')
+
+# Replace with the IP camera stream URL
+ip_camera_url = 'http://192.168.76.110:8080/video'  # Replace with your actual IP camera URL
+
+# Open the video stream from IP camera
+cap = cv2.VideoCapture(ip_camera_url)
+if not cap.isOpened():
+    print("Error: Unable to open the IP camera stream")
+    exit()
+
+# Set up the video window
+cv2.namedWindow('IP Camera Stream - YOLOv8', cv2.WINDOW_NORMAL)
+
+# Set up serial communication with Arduino
+arduino = serial.Serial('COM4', 9600, timeout=1)  # Ensure this COM port matches the Arduino's port
+
+# Variable to track if an object has been detected
+picture_count = 0  # Counter to track the number of pictures taken
+max_pictures = 10  # Maximum number of pictures to take
+
+while picture_count < max_pictures:
+    # Capture frame-by-frame from the live stream
+    ret, frame = cap.read()
+
+    if not ret:
+        print("Failed to capture frame from IP camera stream. Exiting...")
+        break
+
+    # Convert the frame to RGB (YOLO expects RGB format)
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    # Run YOLOv8 model inference on the current frame
+    results = model(frame_rgb)  # Pass the RGB frame to the model
+
+    # Check if there are detected objects in the frame
+    if len(results) > 0:
+        # Log the results (this will help ensure detections are being processed)
+        print(f"Detection results: {results[0].boxes.xyxy if len(results[0].boxes) > 0 else 'No boxes detected'}")
+
+        # Ensure results is a list and get the first element for plotting
+        result_frame = results[0].plot() if isinstance(results, list) else results.plot()
+
+        # Display the frame with detected objects
+        cv2.imshow('IP Camera Stream - YOLOv8', result_frame)
+
+        # Process the boxes and labels
+        if results[0].boxes:  # Ensure there are boxes
+            boxes = results[0].boxes.xyxy
+            labels = [model.names[int(box.cls)] for box in results[0].boxes]
+
+            # Get frame dimensions (height and width)
+            frame_height, frame_width = frame.shape[:2]
+
+            # Process each detected object and calculate servo angles
+            for i in range(len(boxes)):
+                x1, y1, x2, y2 = boxes[i]  # Extracting coordinates from the box
+                print(f"Detected object: {labels[i]} at coordinates: ({x1:.2f}, {y1:.2f}), ({x2:.2f}, {y2:.2f})")
+
+                # --- Calculate Servo Angles ---
+                # Calculate box center position
+                box_center_x = (x1 + x2) / 2
+                box_center_y = (y1 + y2) / 2
+
+                # Normalize to frame dimensions
+                normalized_x = box_center_x / frame_width
+                normalized_y = box_center_y / frame_height
+
+                # Map normalized coordinates to servo angles (0 to 180 degrees)
+                servo1_angle = int(normalized_x * 180) -80 # Adjust X-axis with a 45-degree offset
+                servo2_angle = int((1 - normalized_y) * 180) - 100 # Adjust Y-axis by subtracting 45 degrees
+
+                # Clamp the values between 0 and 180 degrees
+                servo1_angle = max(0, min(180, servo1_angle))
+                servo2_angle = max(0, min(180, servo2_angle))
+
+                print(f"Calculated servo angles: Servo1={servo1_angle}, Servo2={servo2_angle}")
+
+                # Fixed servo angles
+                servo3_angle = 180  # fixed
+                servo4_angle = 90   # fixed
+                servo5_angle = 30  # fixed
+                servo6_angle = 50   # fixed
+
+                # --- Arduino Communication ---
+                # Construct the command string to send to Arduino
+                arduino_command = f"{servo1_angle},{servo2_angle},{servo3_angle},{servo4_angle},{servo5_angle},{servo6_angle}\n"
+                print(f"Sending to Arduino: {arduino_command}")
+                arduino.write(arduino_command.encode())  # Send the angles to Arduino
+
+            # Save the detected frame with a unique filename
+            save_path = fr'C:\Users\Hp\Downloads\waste-detection.v10i.yolov8\detected_images\detected_frame_{picture_count+1}.jpg'
+            cv2.imwrite(save_path, result_frame)  # Save the frame with detected objects
+            print(f"Saved detected frame as {save_path} (Picture {picture_count+1})")
+
+            # Increment the picture count
+            picture_count += 1
+
+            # Wait for a short time before capturing the next picture
+            wait_time = 4  # Set the wait time (in seconds) here
+            print(f"Waiting for {wait_time} seconds before taking the next picture...")
+            time.sleep(wait_time)
+
+    else:
+        # If no detections are made, show the current frame without boxes
+        cv2.imshow('IP Camera Stream - YOLOv8', frame)
+
+    # Break if 'q' is pressed
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# When everything is done, release the capture and close windows
+cap.release()
+cv2.destroyAllWindows()
+
+# Close Serial Communication
+arduino.close()
